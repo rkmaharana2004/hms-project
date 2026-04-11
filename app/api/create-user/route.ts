@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+﻿import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
 
 // We use the Master Key here so it doesn't log the Admin out
 const supabaseAdmin = createClient(
@@ -21,9 +21,10 @@ export async function POST(request: Request) {
     if (authError) throw authError;
 
     // 2. Link them into our Employees table
-    const { error: dbError } = await supabaseAdmin.from('employees').insert([{
+    const { error: dbError } = await supabaseAdmin.from("employees").insert([{
       user_id: authData.user?.id,
       name,
+      email,
       role,
       department
     }]);
