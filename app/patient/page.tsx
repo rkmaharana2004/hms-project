@@ -30,12 +30,51 @@ export default function PatientDashboard() {
   };
 
   const fetchPrescriptions = async (patientId: string) => {
-    const { data, error } = await supabase.from("prescriptions").select("*, doctor:employees!doctor_id(name)").eq("patient_id", patientId).order("created_at", { ascending: false });
-    if (!error && data) setPrescriptions(data.map((rx: any) => ({ ...rx, employees: rx.doctor })));
-    else {
-       const { data: fallback } = await supabase.from("prescriptions").select("*").eq("patient_id", patientId).order("created_at", { ascending: false });
-       if (fallback) setPrescriptions(fallback.map(rx => ({ ...rx, employees: { name: "Unknown" } })));
+    // 1. Fetch prescriptions without join
+    const { data: prescriptionsData, error: rxError } = await supabase
+      .from("prescriptions")
+      .select("*")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false });
+    
+    if (rxError) {
+      console.error("Error fetching prescriptions:", rxError);
+      return;
     }
+
+    if (!prescriptionsData || prescriptionsData.length === 0) {
+      setPrescriptions([]);
+      return;
+    }
+
+    // 2. Fetch all unique doctor IDs
+    const doctorIds = Array.from(new Set(prescriptionsData.map(rx => rx.doctor_id).filter(id => !!id)));
+
+    // 3. Fetch doctor names from employees table
+    const { data: doctorsData, error: docError } = await supabase
+      .from("employees")
+      .select("id, name")
+      .in("id", doctorIds);
+
+    if (docError) {
+      console.error("Error fetching doctors for prescriptions:", docError);
+      // Fallback: show prescriptions with Unknown doctor
+      setPrescriptions(prescriptionsData.map(rx => ({ ...rx, employees: { name: "Unknown" } })));
+      return;
+    }
+
+    // 4. Map doctor names back to prescriptions
+    const doctorMap = (doctorsData || []).reduce((acc: any, doc: any) => {
+      acc[doc.id] = doc.name;
+      return acc;
+    }, {});
+
+    const enrichedPrescriptions = prescriptionsData.map(rx => ({
+      ...rx,
+      employees: { name: doctorMap[rx.doctor_id] || "Unknown" }
+    }));
+
+    setPrescriptions(enrichedPrescriptions);
   };
 
   const handleRequestAppointment = async () => {

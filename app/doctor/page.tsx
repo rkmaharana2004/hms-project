@@ -18,9 +18,20 @@ export default function DoctorDashboard() {
   const [instructions, setInstructions] = useState("");
   const [notes, setNotes] = useState("");
 
-  useEffect(() => { checkDoctorAuthAndFetchQueue(); }, []);
+  useEffect(() => { checkDoctorAuth(); }, []);
 
-  const checkDoctorAuthAndFetchQueue = async () => {
+  useEffect(() => {
+    if (!doctorId) return;
+
+    fetchQueue(doctorId);
+    const channel = supabase.channel("realtime-queue")
+      .on("postgres_changes", { event: "*", schema: "public", table: "opd_queue" }, () => { fetchQueue(doctorId); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [doctorId]);
+
+  const checkDoctorAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/"); return; }
 
@@ -29,12 +40,6 @@ export default function DoctorDashboard() {
 
     setDoctorName(docData.name);
     setDoctorId(docData.id);
-    fetchQueue(docData.id);
-
-    const channel = supabase.channel("realtime-queue")
-      .on("postgres_changes", { event: "*", schema: "public", table: "opd_queue" }, () => { fetchQueue(docData.id); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
   };
 
   const fetchQueue = async (id: string) => {

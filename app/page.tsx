@@ -10,7 +10,7 @@ export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false);
 
   // Auth States
-  const [role, setRole] = useState("Patient");
+  const [role, setRole] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,11 +22,17 @@ export default function LandingPage() {
   const [aadhar, setAadhar] = useState("");
 
   useEffect(() => {
-    if (role !== "Patient") setIsSignUp(false);
+    if (role !== "Patient" && role !== "") setIsSignUp(false);
   }, [role]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isSignUp && !role) {
+      alert("Please select a portal before signing in.");
+      return;
+    }
+
     setLoading(true);
     const cleanEmail = email.trim();
 
@@ -46,12 +52,25 @@ export default function LandingPage() {
         alert(`Login Error: ${authError?.message}`);
         setLoading(false); return;
       }
+
+      // Check if role matches
       const { data: empData } = await supabase.from("employees").select("role").eq("user_id", authData.user.id).single();
+      
       if (empData) {
+        if (empData.role !== role) {
+          alert(`Access Denied: Your account is registered as a ${empData.role}, but you selected the ${role} Portal.`);
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+
         if (empData.role === "Admin") router.push("/admin");
         else if (empData.role === "Doctor") router.push("/doctor");
         else if (empData.role === "Receptionist") router.push("/receptionist");
         else if (empData.role === "Patient") router.push("/patient");
+      } else {
+        alert("Account profile not found. Please contact administration.");
+        await supabase.auth.signOut();
       }
     }
     setLoading(false);
@@ -184,6 +203,7 @@ export default function LandingPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Select Portal</label>
                 <div className="relative">
                   <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full px-5 py-4 border border-gray-200 rounded-2xl bg-gray-50 focus:ring-4 focus:ring-blue-100 outline-none transition appearance-none cursor-pointer">
+                    <option value="">-- Select Portal --</option>
                     <option value="Patient">Patient Portal</option>
                     <option value="Receptionist">Receptionist Portal</option>
                     <option value="Doctor">Doctor Portal</option>
